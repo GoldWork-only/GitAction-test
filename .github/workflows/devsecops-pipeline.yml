@@ -1,0 +1,53 @@
+name: DevSecOps hardened Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # ==========================================
+  # JOB 1: SCANNING & BUILDING
+  # ==========================================
+  security-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Penting bagi Gitleaks untuk memeriksa riwayat git commit lengkap
+
+      # STEP 1: Secret Scanning (Mencegah kebocoran kredensial)
+      - name: Run Gitleaks (Secret Scanner)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # STEP 2: Build Docker Image secara lokal
+      - name: Build Docker Image
+        run: docker build -t my-secure-app:${{ github.sha }} .
+
+      # STEP 3: Vulnerability Scanning pada Docker Image (Trivy)
+      - name: Run Trivy (Container Scanner)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "my-secure-app:${{ github.sha }}"
+          format: "table"
+          exit-code: "1" # Gagalkan pipeline jika ditemukan vulnerability yang tidak aman
+          ignore-unfixed: true # Hiraukan celah yang belum ada patch resmi dari pembuat OS
+          severity: "HIGH,CRITICAL" # Hanya blokir jika tingkat bahayanya HIGH atau CRITICAL
+
+  # ==========================================
+  # JOB 2: DEPLOYMENT (Hanya jalan jika JOB 1 Lolos)
+  # ==========================================
+  deploy-to-production:
+    needs: security-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploying Application
+        run: |
+          echo "=== MEMULAI DEPLOYMENT ==="
+          echo "Verifikasi Keamanan: LOLOS ✅"
+          echo "Menghubungi Server Produksi..."
+          echo "Aplikasi my-secure-app:${{ github.sha }} sukses dideploy!"
