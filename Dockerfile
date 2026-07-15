@@ -3,6 +3,8 @@ FROM node:22-alpine3.20
 
 WORKDIR /usr/src/app
 
+RUN apk update && apk upgrade --no-cache
+
 # Menyalin package manager (jika ada dependensi tambahan nanti)
 COPY package*.json ./
 RUN npm ci --only=production || echo "No package.json found, skipping npm install"
